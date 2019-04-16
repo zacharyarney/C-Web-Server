@@ -89,16 +89,17 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 void get_d20(int fd)
 {
     // Generate a random number between 1 and 20 inclusive
-    
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+
+    int n = (rand() % 20) + 1;
+    char random[8];
+
+    sprintf(random, "%d", n);
 
     // Use send_response() to send it back as text/plain data
-
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    // Not sure if there's a way to get the content type without hardcoding it
+    // When I use mime_type for this function instead of "text/plain" 
+    // it triggers a download of a .txt file containing the random number
+    send_response(fd, SEND_HEADER, "text/plain", random, strlen(random));
 }
 
 /**
