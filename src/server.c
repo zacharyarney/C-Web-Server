@@ -155,7 +155,7 @@ char *find_start_of_body(char *header)
  */
 void handle_http_request(int fd, struct cache *cache)
 {
-    const int request_buffer_size = 65536; // 64K
+    const int request_buffer_size = 262144; // increased to handle images
     char request[request_buffer_size];
 
     // Read request
@@ -166,18 +166,30 @@ void handle_http_request(int fd, struct cache *cache)
         return;
     }
 
-
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    printf("%s\n", request);
 
     // Read the first two components of the first line of the request 
- 
+
     // If GET, handle the get endpoints
 
     //    Check if it's /d20 and handle that special case
     //    Otherwise serve the requested file by calling get_file()
 
+    char request_type[10], path[50];
+    sscanf(request, "%s%s", request_type, path);
+
+    printf("REQUEST TYPE: %s\n", request_type);
+    printf("PATH: %s\n", path);
+
+    if (strcmp(request_type, "GET") == 0) {
+        if (strcmp(path, "/d20") == 0) {
+            get_d20(fd);
+            return;
+        } else {
+            get_file(fd, cache, path);
+            return;
+        }
+    }
 
     // (Stretch) If POST, handle the post request
 }
@@ -206,7 +218,7 @@ int main(void)
     // This is the main loop that accepts incoming connections and
     // responds to the request. The main parent process
     // then goes back to waiting for new connections.
-    
+
     while(1) {
         socklen_t sin_size = sizeof their_addr;
 
@@ -223,11 +235,12 @@ int main(void)
             get_in_addr((struct sockaddr *)&their_addr),
             s, sizeof s);
         printf("server: got connection from %s\n", s);
-        
+
         // newfd is a new socket descriptor for the new connection.
         // listenfd is still listening for new connections.
 
         handle_http_request(newfd, cache);
+        // resp_404(newfd);
 
         close(newfd);
     }
