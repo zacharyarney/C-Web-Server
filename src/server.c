@@ -38,6 +38,7 @@
 
 #define SERVER_FILES "./serverfiles"
 #define SERVER_ROOT "./serverroot"
+#define SEND_HEADER "HTTP/1.1 200 OK"
 
 /**
  * Send an HTTP response
@@ -52,19 +53,35 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 {
     const int max_response_size = 262144;
     char response[max_response_size];
+    char *b = (char *)body;
+    time_t t = time(NULL);
 
     // Build HTTP response and store it in response
 
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    int response_length = sprintf(response,
+        "%s\n"
+        "Date: %s"
+        "Connection: close\n"
+        "Content-Length: %d\n"
+        "Content-Type: %s\n\n",
+        header,
+        asctime(localtime(&t)),
+        content_length,
+        content_type);
+
+    // copies the body into the memory space directly after response
+    //  pointer to space in memory   body  space for body in memory
+    //             v                   v            v
+    memcpy(response + response_length, b, content_length);
 
     // Send it all!
-    int rv = send(fd, response, response_length, 0);
+    int rv = send(fd, response, response_length + content_length, 0);
 
     if (rv < 0) {
         perror("send");
     }
+    // printing to see the response
+    printf("%s\n", response);
 
     return rv;
 }
@@ -76,16 +93,17 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
 void get_d20(int fd)
 {
     // Generate a random number between 1 and 20 inclusive
-    
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+
+    int n = (rand() % 20) + 1;
+    char random[8];
+
+    sprintf(random, "%d", n);
 
     // Use send_response() to send it back as text/plain data
-
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    // Not sure if there's a way to get the content type without hardcoding it
+    // When I use mime_type for this function instead of "text/plain" 
+    // it triggers a download of a .txt file containing the random number
+    send_response(fd, SEND_HEADER, "text/plain", random, strlen(random));
 }
 
 /**
@@ -119,9 +137,32 @@ void resp_404(int fd)
  */
 void get_file(int fd, struct cache *cache, char *request_path)
 {
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    char filepath[4096];
+    struct file_data *filedata;
+    char *mime_type;
+    struct cache_entry *new_entry = cache_get(cache, request_path);
+
+    snprintf(filepath, sizeof(filepath), "%s/%s", SERVER_ROOT, request_path);
+
+    filedata = file_load(filepath);
+
+    mime_type = mime_type_get(filepath);
+
+    if (filedata == NULL) {
+        resp_404(fd);
+        return;
+    }
+
+    if (new_entry == NULL) {
+        cache_put(cache, request_path, mime_type, filedata->data, filedata->size);
+    } else {
+        send_response(fd, SEND_HEADER, new_entry->content_type, new_entry->content, new_entry->content_length);
+        return;
+    }
+
+    send_response(fd, SEND_HEADER, mime_type, filedata->data, filedata->size);
+
+    file_free(filedata);
 }
 
 /**
@@ -142,7 +183,7 @@ char *find_start_of_body(char *header)
  */
 void handle_http_request(int fd, struct cache *cache)
 {
-    const int request_buffer_size = 65536; // 64K
+    const int request_buffer_size = 262144; // increased to handle images
     char request[request_buffer_size];
 
     // Read request
@@ -153,18 +194,30 @@ void handle_http_request(int fd, struct cache *cache)
         return;
     }
 
-
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    printf("%s\n", request);
 
     // Read the first two components of the first line of the request 
- 
+
     // If GET, handle the get endpoints
 
     //    Check if it's /d20 and handle that special case
     //    Otherwise serve the requested file by calling get_file()
 
+    char request_type[10], path[50];
+    sscanf(request, "%s%s", request_type, path);
+
+    printf("REQUEST TYPE: %s\n", request_type);
+    printf("PATH: %s\n", path);
+
+    if (strcmp(request_type, "GET") == 0) {
+        if (strcmp(path, "/d20") == 0) {
+            get_d20(fd);
+            return;
+        } else {
+            get_file(fd, cache, path);
+            return;
+        }
+    }
 
     // (Stretch) If POST, handle the post request
 }
@@ -175,6 +228,7 @@ void handle_http_request(int fd, struct cache *cache)
 int main(void)
 {
     int newfd;  // listen on sock_fd, new connection on newfd
+
     struct sockaddr_storage their_addr; // connector's address information
     char s[INET6_ADDRSTRLEN];
 
@@ -193,7 +247,7 @@ int main(void)
     // This is the main loop that accepts incoming connections and
     // responds to the request. The main parent process
     // then goes back to waiting for new connections.
-    
+
     while(1) {
         socklen_t sin_size = sizeof their_addr;
 
@@ -210,11 +264,12 @@ int main(void)
             get_in_addr((struct sockaddr *)&their_addr),
             s, sizeof s);
         printf("server: got connection from %s\n", s);
-        
+
         // newfd is a new socket descriptor for the new connection.
         // listenfd is still listening for new connections.
 
         handle_http_request(newfd, cache);
+        // resp_404(newfd);
 
         close(newfd);
     }
