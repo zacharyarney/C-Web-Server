@@ -140,16 +140,25 @@ void get_file(int fd, struct cache *cache, char *request_path)
     char filepath[4096];
     struct file_data *filedata;
     char *mime_type;
+    struct cache_entry *new_entry = cache_get(cache, request_path);
 
     snprintf(filepath, sizeof(filepath), "%s/%s", SERVER_ROOT, request_path);
+
     filedata = file_load(filepath);
+
+    mime_type = mime_type_get(filepath);
 
     if (filedata == NULL) {
         resp_404(fd);
         return;
     }
 
-    mime_type = mime_type_get(filepath);
+    if (new_entry == NULL) {
+        cache_put(cache, request_path, mime_type, filedata->data, filedata->size);
+    } else {
+        send_response(fd, SEND_HEADER, new_entry->content_type, new_entry->content, new_entry->content_length);
+        return;
+    }
 
     send_response(fd, SEND_HEADER, mime_type, filedata->data, filedata->size);
 
@@ -219,6 +228,7 @@ void handle_http_request(int fd, struct cache *cache)
 int main(void)
 {
     int newfd;  // listen on sock_fd, new connection on newfd
+
     struct sockaddr_storage their_addr; // connector's address information
     char s[INET6_ADDRSTRLEN];
 
