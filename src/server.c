@@ -59,20 +59,23 @@ int send_response(int fd, char *header, char *content_type, void *body, int cont
     // Build HTTP response and store it in response
 
     int response_length = sprintf(response,
-            "%s\n"
-            "Date: %s"
-            "Connection: close\n"
-            "Content-Length: %d\n"
-            "Content-Type: %s\n\n"
-            "%s",
-            header,
-            asctime(localtime(&t)),
-            content_length,
-            content_type,
-            b);
+        "%s\n"
+        "Date: %s"
+        "Connection: close\n"
+        "Content-Length: %d\n"
+        "Content-Type: %s\n\n",
+        header,
+        asctime(localtime(&t)),
+        content_length,
+        content_type);
+
+    // copies the body into the memory space directly after response
+    //  pointer to space in memory   body  space for body in memory
+    //             v                   v            v
+    memcpy(response + response_length, b, content_length);
 
     // Send it all!
-    int rv = send(fd, response, response_length, 0);
+    int rv = send(fd, response, response_length + content_length, 0);
 
     if (rv < 0) {
         perror("send");
