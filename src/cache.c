@@ -9,9 +9,20 @@
  */
 struct cache_entry *alloc_entry(char *path, char *content_type, void *content, int content_length)
 {
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    struct cache_entry *new_entry = malloc(sizeof(struct cache_entry));
+
+    // strdup allocates space for the string
+    new_entry->path = strdup(path);
+    new_entry->content_type = strdup(content_type);
+    new_entry->content_length = content_length;
+    // malloc for the content because it can be different types
+    new_entry->content = malloc(content_length);
+    // memcpy fills the malloc with the actual content
+    memcpy(new_entry->content, content, content_length);
+    new_entry->prev = NULL;
+    new_entry->next = NULL;
+
+    return new_entry;
 }
 
 /**
